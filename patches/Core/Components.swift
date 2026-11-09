@@ -82,6 +82,13 @@ struct SectionHeader: View {
     let zh: String
     var hint: String? = nil
 
+    /// 与 TrText 一致：调用方统一写 SectionHeader("标题", hint: "说明")，
+    /// 显式无标签构造器避免 memberwise init 要求 zh: 标签。
+    init(_ zh: String, hint: String? = nil) {
+        self.zh = zh
+        self.hint = hint
+    }
+
     var body: some View {
         // hint 独占一行：泰文 / 英文说明往往比中文长一倍，
         // 塞在标题右侧会把标题挤压到重叠或缩成不可读的小字。
