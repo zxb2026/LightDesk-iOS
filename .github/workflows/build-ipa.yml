@@ -24,7 +24,6 @@ jobs:
           curl -fL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/lightdesk-src.zip" "https://aka.doubaocdn.com/s/1utEcRZ7qG"
           ls -lh "$RUNNER_TEMP/lightdesk-src.zip"
           unzip -q -o "$RUNNER_TEMP/lightdesk-src.zip" -d "$GITHUB_WORKSPACE"
-          ls -la "$GITHUB_WORKSPACE"
           test -f "$GITHUB_WORKSPACE/scripts/build_unsigned_ipa.sh"
 
       - name: 重建二进制资源
@@ -36,11 +35,32 @@ jobs:
         run: python3 scripts/verify_ios_mvp.py
 
       - name: 编译并打包未签名 IPA
+        id: build
+        continue-on-error: true
         run: |
+          set -o pipefail
           chmod +x scripts/build_unsigned_ipa.sh
-          ./scripts/build_unsigned_ipa.sh
+          ./scripts/build_unsigned_ipa.sh 2>&1 | tee build.log
+
+      - name: 推送编译日志到 ci-log 分支
+        if: always()
+        run: |
+          {
+            echo "=== error 行 ==="
+            grep -n -i "error:" build.log | head -n 200 || true
+            echo "=== 末尾 300 行 ==="
+            tail -n 300 build.log || true
+          } > ci-log.txt
+          head -c 900000 ci-log.txt > ci-log-trim.txt
+          git config user.name "ci-bot"
+          git config user.email "ci-bot@users.noreply.github.com"
+          git checkout -B ci-log
+          git add -f ci-log-trim.txt
+          git commit -m "编译日志 $(date -u +%Y%m%d-%H%M%S)" || true
+          git push -f origin ci-log
 
       - name: 上传 IPA 产物
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: LightDesk-unsigned-ipa
@@ -48,8 +68,13 @@ jobs:
           if-no-files-found: error
 
       - name: 发布到 Release
+        if: steps.build.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="ipa-$(date -u +%Y%m%d-%H%M%S)"
           gh release create "$TAG" ios/build/export/LightDesk-unsigned.ipa --title "光影台 iOS 未签名 IPA $TAG" --notes "GitHub Actions macos-15 云端编译，未签名；用 Sideloadly + 免费 Apple ID 重签后安装。"
+
+      - name: 编译失败则中断
+        if: steps.build.outcome != 'success'
+        run: exit 1
