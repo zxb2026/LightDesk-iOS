@@ -26,6 +26,10 @@ jobs:
           unzip -q -o "$RUNNER_TEMP/lightdesk-src.zip" -d "$GITHUB_WORKSPACE"
           test -f "$GITHUB_WORKSPACE/scripts/build_unsigned_ipa.sh"
 
+      - name: 应用源码修正补丁
+        run: |
+          if [ -d patches ]; then cp -R patches/. ios/LightDesk/; echo "已套用补丁："; find patches -name '*.swift' -print; fi
+
       - name: 重建二进制资源
         run: |
           python3 scripts/gen_ios_assets.py
@@ -47,9 +51,9 @@ jobs:
         run: |
           {
             echo "=== error 行 ==="
-            grep -n -i "error:" build.log | head -n 200 || true
-            echo "=== 末尾 300 行 ==="
-            tail -n 300 build.log || true
+            grep -n -i "error:" build.log | head -n 250 || true
+            echo "=== 末尾 250 行 ==="
+            tail -n 250 build.log || true
           } > ci-log.txt
           head -c 900000 ci-log.txt > ci-log-trim.txt
           git config user.name "ci-bot"
